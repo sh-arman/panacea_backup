@@ -262,7 +262,7 @@ class PanalyticsController extends Controller
             DB::table('company_user')
                 ->where('id', $id)
                 ->update(array('status' => 1));
-            Session::set('company_user_session', $id);
+            Session::put('company_user_session', $id);
 
             return response()->json(['success' => 'Account activated', 'id' => $id]);
         }
@@ -290,9 +290,9 @@ class PanalyticsController extends Controller
         } elseif ($user && $check == 1 && $user->status == 0) {
             return response()->json(['error' => 'Account is not activated!', 'id' => $user->id]);
         } else {
-            Session::set('company_user_session', $user->id);
+            Session::put('company_user_session', $user->id);
             if (strpos($user->email, "panacea.live") || strpos($user->email, "panacealive.xyz")) {
-                Session::set('company_user_panacea', $user->email);
+                Session::put('company_user_panacea', $user->email);
             }
             return response()->json(['success' => true, 'role' => 'user']);
         }
@@ -374,7 +374,7 @@ class PanalyticsController extends Controller
                     ->where('id', $user->id)
                     ->update(array('password' => $password, 'status' => 1));
                 $message = 'Your password has been reset';
-                Session::set('company_user_session', $user->id);
+                Session::put('company_user_session', $user->id);
                 return response()->json(['success' => $message, 'id' => $user->id]);
 
             } else {

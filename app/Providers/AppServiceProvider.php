@@ -3,6 +3,7 @@
 namespace Panacea\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Panacea\Services\ShortCodeActivationRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -13,7 +14,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        //
+        // Fix for Laravel 5.5+ with older MySQL versions
+        \Illuminate\Support\Facades\Schema::defaultStringLength(191);
     }
 
     /**
@@ -23,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton('sentinel.activations', function ($app) {
+            $config = $app['config']->get('cartalyst.sentinel.activations');
+            return new ShortCodeActivationRepository($config['model'], $config['expires']);
+        });
     }
 }

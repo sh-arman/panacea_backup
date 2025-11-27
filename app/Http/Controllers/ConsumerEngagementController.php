@@ -284,9 +284,9 @@ class ConsumerEngagementController extends Controller
         if (!$user || $check == 0) {
             return response()->json(['error' => 'Invalid email address or password']);
         } else {
-            Session::set('campaign_user_session', $user->id);
+            Session::put('campaign_user_session', $user->id);
             if (strpos($user->email, "panacea.live") || strpos($user->email, "panacealive.xyz")) {
-                Session::set('campaign_user_panacea', $user->email);
+                Session::put('campaign_user_panacea', $user->email);
             }
             return response()->json(['success' => true, 'role' => 'user']);
         }

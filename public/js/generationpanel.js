@@ -82,19 +82,23 @@ $(document).ready(function() {
         var phone_number = $("input[name='phone_number']").val();
         // var token = $("meta[name='csrf-token2']").attr('content');
         // console.log(phone_number, token);
-
-
-        $.post("/verifyLogin", { phone_number: phone_number, _token: $('meta[name="csrf-token2"]').attr('content') }, function(data) {
-            var a = data;
-            // console.log(a);
-            if (a != 0) {
-                console.log("inside");
-                $("#userid").val(a);
-            } else {
-                console.log("outside");
-                $('#error_msg').html('Invalid Login');
-            }
-        });
+        $.post("/verifyLogin", { phone_number: phone_number, _token: $('meta[name="csrf-token2"]').attr('content') })
+            .done(function(data) {
+                var a = data;
+                if (a != 0) {
+                    $("#userid").val(a);
+                } else {
+                    $('#error_msg').html('Invalid login. Please check the phone number.');
+                    $('#verify_div').css("display", "none");
+                    $('#login_div').css("display", "block");
+                }
+            })
+            .fail(function(xhr) {
+                console.log("/verifyLogin failed", xhr.status, xhr.responseText);
+                $('#error_msg').html('Login request failed. Please try again.');
+                $('#verify_div').css("display", "none");
+                $('#login_div').css("display", "block");
+            });
         // .fail(function(e) {
         //     console.log("Have some error", e.responseText);
         // });
@@ -103,20 +107,20 @@ $(document).ready(function() {
     function verify_process() {
         var userid = $("input[name='id']").val();
         var verification_code = $("input[name='verification_code']").val();
-        $.post("/confirmLogin", { id: userid, verification_code: verification_code, _token: $('meta[name="csrf-token_verify"]').attr('content') }, function(data) {
-            // console.log(data);
-            var a = data;
-            if (a != 0) {
-                // console.log("cash me inside" + " " + a);
-                // console.log(typeof a);
-                if (a == 1) window.location.href = 'choosemenu';
-                else if (a == 2) window.location.href = 'code/generate';
-                //$("#userid").val(a);
-            } else {
-                console.log("cash me outside");
-                $('#checkMessage').html('The code entered was incorrect. Please try again.');
-            }
-        });
+        $.post("/confirmLogin", { id: userid, verification_code: verification_code, _token: $('meta[name="csrf-token_verify"]').attr('content') })
+            .done(function(data) {
+                var a = data;
+                if (a != 0) {
+                    if (a == 1) window.location.href = 'choosemenu';
+                    else if (a == 2) window.location.href = 'code/generate';
+                } else {
+                    $('#checkMessage').html('The code entered was incorrect. Please try again.');
+                }
+            })
+            .fail(function(xhr) {
+                console.log("/confirmLogin failed", xhr.status, xhr.responseText);
+                $('#checkMessage').html('Verification failed due to a server error. Please retry.');
+            });
     }
     /*
      $('#generate_button').on('click',function(){

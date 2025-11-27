@@ -145,7 +145,7 @@ class CodeGenerationPanelNewController extends Controller
             ->where('company_id', $data['company']['id'])
             ->groupBy('medicine_name')
             ->get(); 
-        Session::set('CompanyName', $company);
+        Session::put('CompanyName', $company);
         return view('generationPanel.order', $data);
     }
 
@@ -318,7 +318,11 @@ class CodeGenerationPanelNewController extends Controller
             ->take($request->quantity);
 
         $template = Template::select('template_message')->where('med_id', $request->medicine_dosage_id)->where('flag', 'active')->first();
-        $handle = fopen('codes/' . $filename, 'w+');
+        $codesDir = public_path('codes');
+        if (!is_dir($codesDir)) {
+            @mkdir($codesDir, 0775, true);
+        }
+        $handle = fopen($codesDir . '/' . $filename, 'w+');
 
         if ($request->quantity > 500) $chunk = 500;
         else $chunk = $request->quantity;
@@ -341,7 +345,8 @@ class CodeGenerationPanelNewController extends Controller
       
                 foreach ($codes as $code) {
                     fputcsv($handle, [
-                        'SMS (REN ' . $code->code . ') to 26969 to VERIFY',
+                        'REN ' . $code->code,
+                        // 'SMS (REN ' . $code->code . ') to 26969 to VERIFY',
                     ]);
                 }
             }
@@ -693,7 +698,19 @@ class CodeGenerationPanelNewController extends Controller
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); 
         curl_setopt($curl, CURLOPT_HTTPGET, true); 
         $response = curl_exec($curl);
-        \Log::info($apiUrl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($curl);
+        curl_close($curl);
+
+        // Log request + response metadata for diagnostics
+        \Log::info('[SMS] Request URL: '.$apiUrl);
+        if ($curlErr) {
+            \Log::error('[SMS] cURL error: '.$curlErr);
+        }
+        \Log::info('[SMS] HTTP status: '.$httpCode);
+        if (is_string($response)) {
+            \Log::info('[SMS] Response: '.substr($response, 0, 500));
+        }
 
         // return $response;
 
