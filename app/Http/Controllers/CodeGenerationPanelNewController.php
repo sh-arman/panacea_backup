@@ -20,10 +20,11 @@ use Illuminate\Support\Facades\Session;
 use Panacea\InjectableUser;
 use SoapClient;
 use Illuminate\Support\Facades\Http;
+use Panacea\Jobs\GenerateCodesJob;
 
 class CodeGenerationPanelNewController extends Controller
 {
-    
+
 
     public function __construct()
     {
@@ -68,11 +69,11 @@ class CodeGenerationPanelNewController extends Controller
                 // $data['msg'] = $codeActive;
                 $data['message'] = $codeActive . ' - Is Your Login Code For Panacea Live.';
                 // $msg = urlencode( $data['message'] );
-               
-                $this->sendSms($auth->phone_number, urlencode( $data['message'] ));
+
+                $this->sendSms($auth->phone_number, urlencode($data['message']));
 
                 return $user->id;
-            }else {
+            } else {
                 session()->forget('id');
                 Sentinel::logout();
                 //print_r('5');
@@ -129,8 +130,8 @@ class CodeGenerationPanelNewController extends Controller
 
 
     public function chooseMenu()
-    {   
-        $data['codes']=Code::where('status','=','0')->count();
+    {
+        $data['codes'] = Code::where('status', '=', '0')->count();
         $data['page'] = 'menu_page';
         $data['company'] = Company::orderBy('created_at', 'asc')->get();
         return view('generationPanel.chooseCompany', $data);
@@ -144,7 +145,7 @@ class CodeGenerationPanelNewController extends Controller
         $data['medicines'] = Medicine::select('id', 'medicine_name')
             ->where('company_id', $data['company']['id'])
             ->groupBy('medicine_name')
-            ->get(); 
+            ->get();
         Session::put('CompanyName', $company);
         return view('generationPanel.order', $data);
     }
@@ -240,18 +241,13 @@ class CodeGenerationPanelNewController extends Controller
         $find = "PBN/REN";
         $input = $request->prefix;
         //find if template was set and has PBN/REN in it
-        if(strpos($data['template']['template_message'],$find)!==false)
-        {
-            if($input==="2777")
-            {
+        if (strpos($data['template']['template_message'], $find) !== false) {
+            if ($input === "2777") {
                 //if prefix from radio button input is 2777 replace the template preview's PBN/REN with PBN
                 $data['template']['template_message'] = str_replace($find, "PBN", $data['template']['template_message']);
-            }
-            else if($input === 'qr'){
+            } else if ($input === 'qr') {
                 $data['template']['template_message'] = 'Preparing data for QR CODES';
-            }
-            else
-            {
+            } else {
                 //if prefix from radio button input is not 2777 replace the template preview's PBN/REN with REN
                 $data['template']['template_message'] = str_replace($find, "REN", $data['template']['template_message']);
             }
@@ -259,7 +255,7 @@ class CodeGenerationPanelNewController extends Controller
         return view('generationPanel.confirm', $data);
     }
 
-  
+
     public function orderBackForConfirm(Request $request)
     {
         $data['page'] = 'order_page';
@@ -283,7 +279,8 @@ class CodeGenerationPanelNewController extends Controller
     }
 
 
-    public function ConfrimArman(Request $request) {
+    public function ConfrimArmanV1(Request $request)
+    {
         // return $request->all();
 
         Session::forget('orderData');
@@ -309,12 +306,12 @@ class CodeGenerationPanelNewController extends Controller
             'company_admin_id' => Sentinel::getUser()->id,
             'action' => 2
         ]);
-        
+
         $collection = Code::select('code')
             ->where('status', 0)
             ->where(DB::raw('CHAR_LENGTH(code)'), '=', 7)
-            ->where('code','not like','%0%')
-            ->orderBy('id','desc')
+            ->where('code', 'not like', '%0%')
+            ->orderBy('id', 'desc')
             ->take($request->quantity);
 
         $template = Template::select('template_message')->where('med_id', $request->medicine_dosage_id)->where('flag', 'active')->first();
@@ -327,22 +324,18 @@ class CodeGenerationPanelNewController extends Controller
         if ($request->quantity > 500) $chunk = 500;
         else $chunk = $request->quantity;
 
-        if (Session::get('id') == "1929" and $request->medicine_dosage_id == "3") 
-        {
+        if (Session::get('id') == "1929" and $request->medicine_dosage_id == "3") {
             foreach ($collection->get()->chunk($chunk) as $codes) {
-           
+
                 foreach ($codes as $code) {
                     fputcsv($handle, [
                         "SMS (REN " . $code->code . ")",
                     ]);
                 }
             }
-        }
-
-        elseif ($template['template_message'] == "") 
-        {
+        } elseif ($template['template_message'] == "") {
             foreach ($collection->get()->chunk($chunk) as $codes) {
-      
+
                 foreach ($codes as $code) {
                     fputcsv($handle, [
                         'REN ' . $code->code,
@@ -350,13 +343,10 @@ class CodeGenerationPanelNewController extends Controller
                     ]);
                 }
             }
-        }
-
-        elseif ($request->prefix == "6spcae") 
-        {
+        } elseif ($request->prefix == "6spcae") {
             // return 'space';
             foreach ($collection->get()->chunk($chunk) as $codes) {
-      
+
                 foreach ($codes as $code) {
                     fputcsv($handle, [
                         // 'SMS (REN ' . $code->code . ') to 26969 to VERIFY',
@@ -364,9 +354,7 @@ class CodeGenerationPanelNewController extends Controller
                     ]);
                 }
             }
-        }
-        else
-        {
+        } else {
             // Split with PBN/REN MCKRTWS. add prefix and suffix
             $new_message = explode("PBN/REN MCKRTWS", $template['template_message']);
             foreach ($collection->get()->chunk($chunk) as $codes) {
@@ -385,7 +373,54 @@ class CodeGenerationPanelNewController extends Controller
         return redirect('/order');
     }
 
- 
+    public function ConfrimArman(Request $request)
+    {
+        // return $request->all();
+
+        Session::forget('orderData');
+        ini_set('memory_limit', '1024M');
+
+        $order_id = Order::max('id') + 1;
+        $filename = $order_id . '_' . $request->file . '.csv';
+
+        // Fix dates
+        $mfg = $request->mfg_date . "-28";
+        $exp = $request->expiry_date . "-28";
+
+        // Create order
+        $order = Order::create([
+            'company_id' => $request->company_id,
+            'medicine_id' => $request->medicine_dosage_id,
+            'mfg_date' => $mfg,
+            'expiry_date' => $exp,
+            'batch_number' => $request->batch_number,
+            'quantity' => $request->quantity,
+            'file' => $filename,
+            'status' => 'processing',
+        ]);
+
+        // Log
+        Log::create([
+            'company_id' => $request->company_id,
+            'company_admin_id' => Sentinel::getUser()->id,
+            'action' => 2
+        ]);
+
+        // Dispatch Job (REAL WORK HAPPENS HERE)
+        GenerateCodesJob::dispatch(
+            $order->id,
+            $request->company_id,
+            $request->medicine_dosage_id,
+            $request->quantity,
+            $request->prefix,
+            $filename,
+            Sentinel::getUser()->id
+        );
+
+        return redirect('/order');
+        return back()->with('success', 'Code generation started. It will complete in background.');
+    }
+
     public function indexOrder()
     {
         if ($user = Sentinel::check()) {
@@ -411,7 +446,7 @@ class CodeGenerationPanelNewController extends Controller
         $data['order'] = Order::with(['medicine:id,medicine_name,medicine_type,medicine_dosage'])
             ->where('company_id', $data['company']->id)
             // ->whereNotIn('medicine_id', [4, 8])
-            ->select('id','medicine_id','batch_number','quantity','status','file','created_at')
+            ->select('id', 'medicine_id', 'batch_number', 'quantity', 'status', 'file', 'created_at')
             ->orderBy('created_at', 'desc')
             ->limit(120)
             ->get();
@@ -457,9 +492,8 @@ class CodeGenerationPanelNewController extends Controller
         WHERE company_id = " . $data['company']->id . " AND company_admin_id = users.id ORDER BY code_generation_log.created_at DESC";
         $data['log'] = DB::select($query);
         //$data['userNames'] = DB::table('company_user')->select('full_name')->get();
-        $i=0;
-        foreach($data['log'] as $log)
-        {
+        $i = 0;
+        foreach ($data['log'] as $log) {
             $name[$i] = $log->name;
             $i++;
         }
@@ -492,16 +526,15 @@ class CodeGenerationPanelNewController extends Controller
         return view('generationPanel.template', $data);
     }
 
- 
+
     public function addTemplate(Request $request)
     {
         //if data exists from previous template update confirmation request delete it
-        if(session()->has('template'))
-        {
+        if (session()->has('template')) {
             session()->forget('template');
         }
         if (Template::where('flag', '=', 'active')->where('med_id', '=', $request->medicine_dosage)->count() > 0) {
-        
+
             // if medicine already exists AND flag is active, update template
             $temp = Template::select('template_message')->where('flag', '=', 'active')->where('med_id', $request->medicine_dosage)->get();
             $temp[0]['med_id'] = $request->medicine_dosage;
@@ -510,12 +543,11 @@ class CodeGenerationPanelNewController extends Controller
 
             session(['template' => $temp[0]]);
 
-            return redirect()->back()->with(['templateError'=>'A template already exists for this medicine.
-            Are you sure you want to replace the template- "'.
-            $temp[0]->template_message.
-            '" with "'.
-            $request->prefix . 'PBN/REN MCKRTWS' . $request->suffix.'"?']);
-
+            return redirect()->back()->with(['templateError' => 'A template already exists for this medicine.
+            Are you sure you want to replace the template- "' .
+                $temp[0]->template_message .
+                '" with "' .
+                $request->prefix . 'PBN/REN MCKRTWS' . $request->suffix . '"?']);
         } else {
             // create new template
             Template::create([
@@ -526,24 +558,23 @@ class CodeGenerationPanelNewController extends Controller
                 'flag' => 'active'
             ]);
         }
-        return redirect('/templates')->with(['templateSuccess'=>'Template has been added.']);
+        return redirect('/templates')->with(['templateSuccess' => 'Template has been added.']);
     }
 
 
     public function confirmAddTemplate()
     {
-        if(session()->has('template'))
-        {
+        if (session()->has('template')) {
             $template = session('template');
             session()->forget('template');
             DB::table('templates')->where('med_id', $template->med_id)->update(
-                ['template_message' => $template->prefix . 'PBN/REN MCKRTWS' . $template->suffix,
+                [
+                    'template_message' => $template->prefix . 'PBN/REN MCKRTWS' . $template->suffix,
                     'updated_at' => DB::raw('NOW()')
-                ]);
-            return redirect('/templates')->with(['templateSuccess'=>'Template has been updated.']);
-        }
-        else
-        {
+                ]
+            );
+            return redirect('/templates')->with(['templateSuccess' => 'Template has been updated.']);
+        } else {
             return redirect('/templates');
         }
     }
@@ -554,10 +585,12 @@ class CodeGenerationPanelNewController extends Controller
             $templateId = Template::find($id);
             if ($templateId) {
                 DB::table('templates')->where('id', $id)->update(
-                    ['flag' => 'inactive',
+                    [
+                        'flag' => 'inactive',
                         'updated_at' => DB::raw('NOW()')
-                    ]);
-                return redirect('/templates')->with(['templateSuccess'=>'Template has been deleted.']);
+                    ]
+                );
+                return redirect('/templates')->with(['templateSuccess' => 'Template has been deleted.']);
             }
         }
     }
@@ -632,7 +665,7 @@ class CodeGenerationPanelNewController extends Controller
                         <td> " . $order->created_at . " </td></tr>";
         }
     }
-  
+
     public function showMoreLog(Request $request)
     {
         $data = [];
@@ -672,8 +705,8 @@ class CodeGenerationPanelNewController extends Controller
             $request->offset = 0;
         }
 
-        if($request->nameInput!=''){
-            $query .= " AND name LIKE '%". $request->nameInput ."%'";
+        if ($request->nameInput != '') {
+            $query .= " AND name LIKE '%" . $request->nameInput . "%'";
             $request->offset = 0;
         }
 
@@ -702,24 +735,24 @@ class CodeGenerationPanelNewController extends Controller
     {
 
         // $apiUrl = "https://api.mobireach.com.bd/SendTextMessage?Username=panacealive&Password=Panacearocks@2022&From=MAXPRO&To=".$auth->phone_number."&Message=".  urlencode( $data['message'] );
-       
-        $apiUrl = "https://api.mobireach.com.bd/SendTextMessage?Username=panacealive&Password=Panacearocks@2022&From=MAXPRO&To=".$phone_number."&Message=".$message;
+
+        $apiUrl = "https://api.mobireach.com.bd/SendTextMessage?Username=panacealive&Password=Panacearocks@2022&From=MAXPRO&To=" . $phone_number . "&Message=" . $message;
         $curl = curl_init($apiUrl);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); 
-        curl_setopt($curl, CURLOPT_HTTPGET, true); 
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_HTTPGET, true);
         $response = curl_exec($curl);
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($curl);
         curl_close($curl);
 
         // Log request + response metadata for diagnostics
-        \Log::info('[SMS] Request URL: '.$apiUrl);
+        \Log::info('[SMS] Request URL: ' . $apiUrl);
         if ($curlErr) {
-            \Log::error('[SMS] cURL error: '.$curlErr);
+            \Log::error('[SMS] cURL error: ' . $curlErr);
         }
-        \Log::info('[SMS] HTTP status: '.$httpCode);
+        \Log::info('[SMS] HTTP status: ' . $httpCode);
         if (is_string($response)) {
-            \Log::info('[SMS] Response: '.substr($response, 0, 500));
+            \Log::info('[SMS] Response: ' . substr($response, 0, 500));
         }
 
         // return $response;
@@ -737,13 +770,13 @@ class CodeGenerationPanelNewController extends Controller
         //     echo $e;
         // }
     }
- 
+
     protected function sendSmsRobiBangla($phone_number, $message, $mask = 'Panacea')
     {
-        $apiUrl = "https://api.mobireach.com.bd/SendTextMessage?Username=panacealive&Password=Panacearocks@2022&From=MAXPRO&To=".$phone_number."&Message=".$message;
+        $apiUrl = "https://api.mobireach.com.bd/SendTextMessage?Username=panacealive&Password=Panacearocks@2022&From=MAXPRO&To=" . $phone_number . "&Message=" . $message;
         $curl = curl_init($apiUrl);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); 
-        curl_setopt($curl, CURLOPT_HTTPGET, true); 
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_HTTPGET, true);
         $response = curl_exec($curl);
         \Log::info($apiUrl);
         // try {       
@@ -760,26 +793,22 @@ class CodeGenerationPanelNewController extends Controller
         // } catch (Exception $e) {
         //     echo $e;
         // }
-    } 
+    }
 
     public function getUserCompany($user)
     {
         $user_email = User::select('email')->where('id', $user->id)->first();
-        $ijectable_user=InjectableUser::select('id')->where('user_id',$user->id)->first();
+        $ijectable_user = InjectableUser::select('id')->where('user_id', $user->id)->first();
         //dd($ijectable_user);
         $explodedEmail = explode('@', $user_email->email);
         $domain = array_pop($explodedEmail);
-        if ($domain == 'panacea.live' || $domain == 'panacealive.xyz')
-        {
+        if ($domain == 'panacea.live' || $domain == 'panacealive.xyz') {
             return 'panacea';
-        } 
-        elseif ($domain == 'kumarika.com')
-        {
+        } elseif ($domain == 'kumarika.com') {
             return 'kumarika';
-        } 
+        }
         // arif.ullah@renata-ltd.com 8804
-        elseif ($domain == 'renata-ltd.com')
-        {
+        elseif ($domain == 'renata-ltd.com') {
             return 'renata';
         }
         // arif.ullah@renata-ltd.com 8804
@@ -787,21 +816,16 @@ class CodeGenerationPanelNewController extends Controller
         // {
         //     return 'renata_injectable';
         // }  
-        
-        elseif ($domain == 'gmail.com' || $domain == 'hotmail.com' || $domain == 'yahoo.com')
-        {
+
+        elseif ($domain == 'gmail.com' || $domain == 'hotmail.com' || $domain == 'yahoo.com') {
             return 'invalid';
-        }
-         else
-        {
+        } else {
             // if(!empty($ijectable_user))
-            if($domain == 'renata_injectable.com')
-            {
+            if ($domain == 'renata_injectable.com') {
                 return 'renata_injectable';
             }
-            $company_name = Company::select('display_name')->where('contact_email','like', '%' . $domain)->first();
+            $company_name = Company::select('display_name')->where('contact_email', 'like', '%' . $domain)->first();
             return $company_name->display_name;
         }
     }
-
 }

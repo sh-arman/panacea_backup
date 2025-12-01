@@ -41,7 +41,7 @@ class GenerateCode extends Command {
         $availableCodeCount = Code::where( 'status', '=', '0' )->count();
 
         if ( $availableCodeCount <= 2000000 ) {
-            $quantity = 10000;
+            $quantity = 1000;
             // Mail::raw( 'Available codes are running low, Automatic code generation increases to 10 lakhs in this hour.', function ( $message ) {
             //     $message->to( 'soumik@panacea.live' )->cc( 'ahmed@panacea.live' );
             //     $message->subject( '[Panacea] Automatic Available Codes Generation!' );

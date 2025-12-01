@@ -22,6 +22,7 @@ return array(
     'CreateFacebookVerificationTable' => $baseDir . '/database/migrations/2016_05_29_162759_create_facebook_verification_table.php',
     'CreateGenerationLogTable' => $baseDir . '/database/migrations/2017_01_09_120110_create_generation_log_table.php',
     'CreateInjectableUser' => $baseDir . '/database/migrations/2020_03_10_115423_create_injectable_user.php',
+    'CreateJobsTable' => $baseDir . '/database/migrations/2025_11_30_002240_create_jobs_table.php',
     'CreateMedicineTable' => $baseDir . '/database/migrations/2015_06_21_052220_create_medicine_table.php',
     'CreateOrderTable' => $baseDir . '/database/migrations/2015_06_22_061542_create_order_table.php',
     'CreateProbModelActionTable' => $baseDir . '/database/migrations/2017_02_19_121959_create_prob_model_action_table.php',
